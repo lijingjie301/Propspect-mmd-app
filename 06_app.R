@@ -63,10 +63,31 @@ train_data <- df[idx, ]
 valid_data <- df[-idx, ]
 cat(sprintf("training %d / validation %d\n", nrow(train_data), nrow(valid_data)))
 
-set.seed(2024)
-rsf <- rfsrc(Surv(time, status) ~ ., data = train_data,
-             ntree = NTREE, nodesize = 10, cause = 1, splitrule = "logrank",
-             importance = "none")
+.m <- NULL
+MODEL_FILE <- "model.rds"
+PRECOMP_FILE <- "precomputed.rds"
+rsf <- NULL
+if (file.exists(PRECOMP_FILE)) {
+  .m <- readRDS(PRECOMP_FILE)
+  cat("using precomputed predictions\n")
+} else if (file.exists(MODEL_FILE)) {
+  .m <- readRDS(MODEL_FILE)
+  rsf <- .m$rsf
+  cat("using the pre-fitted model\n")
+} else {
+  set.seed(2024)
+  rsf <- rfsrc(Surv(time, status) ~ ., data = train_data,
+               ntree = NTREE, nodesize = 10, cause = 1, splitrule = "logrank",
+               importance = "none")
+}
+
+get_rsf <- function() {
+  if (is.null(rsf)) {
+    cat("loading the forest on first use ...\n")
+    rsf <<- readRDS(MODEL_FILE)$rsf
+  }
+  rsf
+}
 
 risk_at <- function(model, newdata, horizon) {
   pr <- predict(model, newdata = newdata[, VARS, drop = FALSE])
@@ -81,8 +102,13 @@ pred_fun <- function(model, X) {
   as.numeric(pr$cif[, j, 1])
 }
 
-train_risk <- risk_at(rsf, train_data, HORIZON)
-valid_risk <- risk_at(rsf, valid_data, HORIZON)
+if (!is.null(.m)) {
+  train_risk <- .m$train_risk
+  valid_risk <- .m$valid_risk
+} else {
+  train_risk <- risk_at(rsf, train_data, HORIZON)
+  valid_risk <- risk_at(rsf, valid_data, HORIZON)
+}
 cutoff     <- CUTOFF
 cutoff_pct <- cutoff * 100
 
@@ -108,9 +134,14 @@ global_value_labels <- list(
 )
 
 # ---- 4. background sample and global SHAP -----------------------------------
-set.seed(11)
-bg <- as.data.frame(train_data[sample(nrow(train_data), BG_N), VARS])
-base_value <- mean(pred_fun(rsf, bg))   # E[f(x)] over the background sample
+if (!is.null(.m)) {
+  bg <- .m$bg
+  base_value <- .m$base_value
+} else {
+  set.seed(11)
+  bg <- as.data.frame(train_data[sample(nrow(train_data), BG_N), VARS])
+  base_value <- mean(pred_fun(rsf, bg))   # E[f(x)] over the background sample
+}
 
 if (file.exists(CACHE_FILE)) {
   shap_global <- readRDS(CACHE_FILE)
@@ -118,7 +149,7 @@ if (file.exists(CACHE_FILE)) {
   set.seed(12)
   ex <- as.data.frame(valid_data[sample(nrow(valid_data), min(EXPLAIN_N, nrow(valid_data))), VARS])
   cat("computing the global KernelSHAP (a few minutes) ...\n")
-  ks <- kernelshap(rsf, X = ex, bg_X = bg, pred_fun = pred_fun, verbose = FALSE)
+  ks <- kernelshap(get_rsf(), X = ex, bg_X = bg, pred_fun = pred_fun, verbose = FALSE)
   shap_global <- ks
   try(saveRDS(ks, CACHE_FILE), silent = TRUE)
 }
@@ -241,7 +272,7 @@ server <- function(input, output, session) {
   })
 
   current_risk_prob <- reactive({
-    p <- risk_at(rsf, get_current_data(), HORIZON) * 100
+    p <- risk_at(get_rsf(), get_current_data(), HORIZON) * 100
     min(max(p, 0), 100)
   })
 
@@ -298,7 +329,7 @@ server <- function(input, output, session) {
     X_new <- get_current_data()
     prob <- current_risk_prob()
 
-    ks <- kernelshap(rsf, X = X_new, bg_X = bg, pred_fun = pred_fun, verbose = FALSE)
+    ks <- kernelshap(get_rsf(), X = X_new, bg_X = bg, pred_fun = pred_fun, verbose = FALSE)
     sv <- shapviz(ks$S, X = ks$X, baseline = base_value)
     sv$X <- as.data.frame(sv$X)
     sv$S <- as.matrix(sv$S)
