@@ -3,7 +3,7 @@
 #
 # Model : competing-risks random survival forest (cause = 1, stroke)
 # Output: predicted 12-month cumulative incidence of stroke
-# Data  : data/1250.csv  (development cohort, 7 variables)
+# Data  : data/1250.csv  (development cohort, five variables)
 #
 # Run locally : open this file and source it, or Rscript shiny_app.R
 # Deploy      : rsconnect::deployApp("path/to/this/folder")
@@ -19,12 +19,12 @@ set.seed(2024)
 DATA_FILE  <- if (file.exists("data/1250.csv")) "data/1250.csv" else "data/example_1250.csv"
 CACHE_FILE <- "shap_cache.rds"
 HORIZON    <- 12                      # months
-NTREE      <- 300
-CUT_Q      <- 0.80                    # risk-group cut-off: 80th percentile
+NTREE      <- 1000
+CUTOFF     <- 0.237886                # fixed Youden-optimal 12-month cut-off (training set)
 BG_N       <- 40                      # background sample for KernelSHAP
 EXPLAIN_N  <- 60                      # patients used for the global SHAP plots
 
-VARS <- c("age", "suzuki", "pci", "symptom", "pinlv", "vwi", "TTP")
+VARS <- c("suzuki", "pci", "symptom", "pinlv", "TTP")
 
 # ---- 1. data ----------------------------------------------------------------
 parse_date <- function(x) {
@@ -83,7 +83,7 @@ pred_fun <- function(model, X) {
 
 train_risk <- risk_at(rsf, train_data, HORIZON)
 valid_risk <- risk_at(rsf, valid_data, HORIZON)
-cutoff     <- unname(quantile(train_risk, CUT_Q))
+cutoff     <- CUTOFF
 cutoff_pct <- cutoff * 100
 
 col_low  <- "#04559f"
@@ -91,13 +91,11 @@ col_high <- "#bd4b3a"
 
 # ---- 3. labels --------------------------------------------------------------
 global_var_labels <- c(
-  "age"     = "Age (years)",
   "suzuki"  = "Suzuki stage",
   "pci"     = "PCA involvement",
   "symptom" = "Symptom type",
   "pinlv"   = "Symptom frequency",
-  "vwi"     = "HR-VWI score",
-  "TTP"     = "TTP (relative s)"
+  "TTP"     = "TTP (relative, unitless)"
 )
 
 global_value_labels <- list(
@@ -106,8 +104,7 @@ global_value_labels <- list(
   "pci"     = c("0" = "None", "1" = "Unilateral", "2" = "Bilateral"),
   "symptom" = c("0" = "TIA", "1" = "Cerebral infarction",
                 "2" = "Haemorrhagic stroke", "3" = "Asymptomatic"),
-  "pinlv"   = c("0" = "< 2 / month", "1" = "\u2265 2 / month"),
-  "vwi"     = c("0" = "0", "1" = "1", "2" = "2", "3" = "3", "4" = "4")
+  "pinlv"   = c("0" = "< 2 / month", "1" = "\u2265 2 / month")
 )
 
 # ---- 4. background sample and global SHAP -----------------------------------
@@ -187,8 +184,7 @@ ui <- page_sidebar(
 
   sidebar = sidebar(
     title = "Patient characteristics", width = 360,
-    sliderInput("age", "Age (years)", min = 0, max = 18, value = 8, step = 1),
-    sliderInput("TTP", "TTP (relative s)", min = -2, max = 9, value = 3.0, step = 0.01),
+    sliderInput("TTP", "TTP (relative, unitless)", min = -2, max = 9, value = 3.0, step = 0.01),
     hr(),
     selectInput("suzuki", "Suzuki stage",
                 choices = setNames(0:5, paste("Stage", 1:6)), selected = 3),
@@ -199,7 +195,6 @@ ui <- page_sidebar(
                             "Haemorrhagic stroke" = 2, "Asymptomatic" = 3)),
     selectInput("pinlv", "Symptom frequency",
                 choices = c("< 2 per month" = 0, "\u2265 2 per month" = 1)),
-    selectInput("vwi", "HR-VWI score", choices = setNames(0:4, 0:4), selected = 2),
     hr(),
     p(class = "text-muted small",
       sprintf("Cut-off: %.1f%% (%d-month risk) | %d variables | %d training patients",
@@ -238,12 +233,10 @@ ui <- page_sidebar(
 server <- function(input, output, session) {
 
   get_current_data <- reactive({
-    data.frame(age = as.numeric(input$age),
-               suzuki = as.numeric(input$suzuki),
+    data.frame(suzuki = as.numeric(input$suzuki),
                pci = as.numeric(input$pci),
                symptom = as.numeric(input$symptom),
                pinlv = as.numeric(input$pinlv),
-               vwi = as.numeric(input$vwi),
                TTP = as.numeric(input$TTP))[, VARS, drop = FALSE]
   })
 
