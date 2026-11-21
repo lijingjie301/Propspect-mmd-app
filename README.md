@@ -91,6 +91,14 @@ rsconnect::deployApp(appDir = ".", appName = "PRESTO-pMMD",
                      account = "lijingjie301", server = "shinyapps.io")
 ```
 
+## Reproducing the released model
+
+`model.rds` is the frozen fitted random survival forest used for the paper and by the deployed calculator (ntree = 1,000, nodesize = 10, splitrule = "logrank", seed = 2024; MD5 `6d22e0b0512c4393c9b35fcea1b025f6`). `precomputed.rds` and `shap_cache.rds` hold the precomputed training/validation risks and the global SHAP values used by the app, so individual predictions can be reproduced without refitting.
+
+`benchmark.csv` lists three standard inputs spanning the risk range and the 12-month risk returned by the frozen model (0.49%, 18.18% and 27.07%). The deployed calculator (<https://lijingjie301.shinyapps.io/PRESTO-pMMD/>) uses the same `model.rds` and returns the same values.
+
+The synthetic example cohort (`data/example_1250.csv`) verifies that the pipeline runs end to end; it does not reproduce the clinical-cohort forest, which is provided as the frozen object above.
+
 ## Seeds
 
 42 for the split, 2024 for the forest and the selection, 11/12 for the SHAP
