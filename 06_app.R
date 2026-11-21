@@ -256,7 +256,7 @@ ui <- page_sidebar(
        plotOutput("shap_importance", height = "380px")),
 
   div(class = "footer-text",
-      sprintf("PROPSPECT-MMD | competing-risks random survival forest | cut-off %.2f%% | %d variables | %d training patients",
+      sprintf("PROPSPECT-MMD | competing-risks random survival forest | cut-off %.2f%% | %d variables | %d training patients | point estimates only (no individual confidence interval)",
               cutoff_pct, length(VARS), nrow(train_data)))
 )
 
@@ -296,17 +296,14 @@ server <- function(input, output, session) {
     grp <- if (prob > cutoff_pct) "High risk" else "Low risk"
     d <- train_data[train_data$risk_group == grp, ]
     c12 <- aj_curve(d, factor(rep(grp, nrow(d)), levels = grp), 12)
-    c24 <- aj_curve(d, factor(rep(grp, nrow(d)), levels = grp), 24)
-    c60 <- aj_curve(d, factor(rep(grp, nrow(d)), levels = grp), 60)
     last <- function(x) round(100 * x$est[nrow(x)], 1)
     HTML(sprintf(
       '<div style="font-size:14px;">
         <b>%s</b><br>
-        12-month cumulative incidence: <b>%.1f%%</b><br>
-        24-month cumulative incidence: <b>%.1f%%</b><br>
-        60-month cumulative incidence: <b>%.1f%%</b><br>
-        Stroke-free survival at 24 months: <b>%.1f%%</b>
-      </div>', grp, last(c12), last(c24), last(c60), 100 - last(c24)))
+        Predicted 12-month risk (point estimate): <b>%.2f%%</b><br>
+        Observed 12-month cumulative incidence in this risk group: <b>%.1f%%</b><br>
+        <span style="color:#777;">Point estimate only; no individual confidence interval is provided.</span>
+      </div>', grp, prob, last(c12)))
   })
 
   output$gauge_plot <- renderPlotly({
