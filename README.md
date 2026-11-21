@@ -1,8 +1,11 @@
-# PROPSPECT-MMD — competing-risks prediction of stroke in paediatric moyamoya disease
+# PROPSPECT-MMD — competing-risks prediction of preoperative stroke in paediatric moyamoya disease
 
-Analysis code and the Shiny explorer for the study. The outcome is stroke
-(cause 1) with revascularisation handled as a competing event (cause 2);
-prediction is done at 3, 6, 12 and 24 months.
+Analysis code and the Shiny explorer for the study. The outcome is preoperative
+stroke (cause 1) with revascularisation handled as a competing event (cause 2).
+The final model uses five predictors — time to peak (relative, unitless),
+PCA involvement, symptom type, symptom frequency and Suzuki stage — and provides
+individualised risk estimates at 3, 6, 9 and 12 months, with 12 months as the
+primary horizon.
 
 ## Pipeline
 
@@ -13,11 +16,26 @@ prediction is done at 3, 6, 12 and 24 months.
 | `02_select.R` | LASSO + Boruta, intersection, bootstrap stability | `output/02_selection.rds`, fig 1-3 |
 | `03_models.R` | CSC, Fine-Gray, competing-risks RSF | `output/03_models.rds` |
 | `04_eval.R` | time-dependent AUC, ROC, calibration, DCA, risk strata, CIF | `output/tables/*.csv`, fig 4-7 |
-| `05_shap.R` | KernelSHAP at 12 months | `output/05_shap.rds`, fig 8-9 |
+| `05_shap.R` | KernelSHAP at 3, 6 and 12 months | `output/05_shap.rds`, fig 8-9 |
 | `06_app.R` | Shiny app for a single patient | local web app |
 
 Helpers live in `R/utils.R` (date parsing, Aalen-Johansen CIF, IPCW versions of
 AUC / Brier score / net benefit, plotting theme).
+
+## Model files used by the app
+
+| file | content |
+|---|---|
+| `model.rds` | fitted competing-risks random survival forest (ntree = 1,000, nodesize = 10, splitrule = "logrank", seed = 2024) |
+| `precomputed.rds` | training/validation risks, SHAP background sample and base value (loaded at start-up) |
+| `shap_cache.rds` | cached global KernelSHAP values for the validation subset |
+
+The app reads `precomputed.rds` at start-up and defers loading the forest in
+`model.rds` until the first prediction, which keeps start-up short. If these
+files are absent the app refits the forest from `data/1250.csv`.
+
+The 12-month Youden-optimal cut-off in the training set is **0.237886**
+(23.79%); the 6-month cut-off is **0.151276**.
 
 ## Data
 
@@ -33,8 +51,9 @@ to the synthetic file when they are absent.
 
 Columns expected: `event`, `age`, `suzuki`, `pci`, `symptom`, `pinlv`,
 `chixushijian`, `sex`, `history`, `hypertension`, `tdm`, `hyperli`, `hhcy`,
-`cari`, `thy`, `ane`, `rnf213`, `TTP`, `vwi`, plus four date columns
-(baseline, stroke, operation, last follow-up). The csv is GB18030 encoded.
+`cari`, `thy`, `ane`, `TTP`, plus four date columns (baseline, stroke,
+operation, last follow-up) and, when available, the admission date. The csv is
+GB18030 encoded. RNF213 genotype and HR-VWI score are not used by the model.
 
 ## Requirements
 
@@ -60,9 +79,10 @@ Figures are written as PNG (600 dpi) and PDF into `output/figures/`.
 
 Deployed version: <https://lijingjie301.shinyapps.io/PRESTO-pMMD/>
 
-The app fits the forest at start-up, then explains a single patient with exact
-KernelSHAP (7 features, 2^7 coalitions). If `shap_cache.rds` is present it is
-loaded instead of recomputing the global explanation.
+The app returns the predicted 12-month cumulative incidence of preoperative
+stroke, the risk stratum based on the fixed training cut-off (23.79%), and an
+exact KernelSHAP explanation for the five predictors. The calculator is freely
+accessible without registration or a password.
 
 Deploy with:
 
