@@ -1,0 +1,25 @@
+# R session files
+.Rhistory
+.RData
+.Rproj.user/
+
+# Data: patient-level data are never distributed
+data/
+!*.md
+
+# Generated outputs and model objects
+output/
+*.rds
+*.RDS
+model.rds
+precomputed.rds
+shap_cache.rds
+benchmark.csv
+
+# Manuscript and supplementary documents
+*.docx
+*.doc
+*.pdf
+*.png
+*.tif
+*.tiff
