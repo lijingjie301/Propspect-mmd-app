@@ -45,16 +45,12 @@ weights.
 
 ## Data
 
-Patient data are not included. To run the pipeline, place the development cohort at
-`data/1250.csv` and the external cohort at `data/229.xlsx` on the local machine.
-The expected columns of `data/1250.csv` are `event`, `age`, `suzuki`, `pci`,
-`symptom`, `pinlv`, `chixushijian`, `sex`, `history`, `hypertension`, `tdm`,
-`hyperli`, `hhcy`, `cari`, `thy`, `ane`, `TTP`, four date columns (baseline, stroke,
-operation, last follow-up) and, when available, the admission date; the file is
-GB18030 encoded. RNF213 genotype and HR-VWI score are not used by the model.
+Patient-level data are not included in this repository. The pipeline reads local input
+files referenced in `01_prepare.R`; no patient data, derived datasets, fitted objects or
+analysis outputs are distributed. Data and output directories are excluded by `.gitignore`.
 
-Fitted objects (`model.rds`, `precomputed.rds`, `shap_cache.rds`) are generated
-locally by the pipeline and are deliberately excluded from this repository.
+Fitted objects are generated locally by the pipeline and are deliberately excluded from
+this repository.
 
 ## Requirements
 
