@@ -15,7 +15,7 @@ study server because they contain or derive from clinical records.
 | script | what it does | output |
 |---|---|---|
 | `00_run_all.R` | runs everything in order | — |
-| `01_prepare.R` | outcome from dates, imputation, 7:3 stratified split | `output/01_prepared.rds` |
+| `01_prepare.R` | outcome from dates, 7:3 stratified split, training-set imputation applied to validation | `output/01_prepared.rds` |
 | `02_select.R` | LASSO + Boruta, intersection, bootstrap stability | `output/02_selection.rds`, figures |
 | `03_models.R` | cause-specific Cox, Fine–Gray and competing-risks RSF | `output/03_models.rds` |
 | `04_eval.R` | time-dependent AUC, ROC, calibration, DCA, risk strata, CIF | `output/tables/*.csv`, figures |
@@ -30,7 +30,7 @@ AUC, Brier score and net benefit, plotting theme).
 | setting | value |
 |---|---|
 | split | 70:30 stratified on three-level outcome status, seed 42 |
-| imputation | missForest, 10 iterations, 100 trees, run within each cohort after the split; outcome and follow-up excluded |
+| imputation | random-forest imputation fitted in the training set (100 trees), with outcome and follow-up excluded; training missing TTP filled by 5-fold out-of-fold predictions, and the fitted imputer applied unchanged to the internal validation and external cohorts |
 | horizons | 3, 6, 9 and 12 months |
 | bootstrap | 300 patient-level resamples, seed 2024 |
 | RSF | ntree = 1,000, nodesize = 10, splitrule = "logrank", seed = 2024 |
@@ -61,7 +61,7 @@ locally by the pipeline and are deliberately excluded from this repository.
 R >= 4.3
 
 ```r
-install.packages(c("survival", "readxl", "missForest", "glmnet", "Boruta",
+install.packages(c("survival", "readxl", "glmnet", "Boruta",
                    "randomForestSRC", "riskRegression", "prodlim", "cmprsk",
                    "pROC", "ggplot2", "patchwork", "kernelshap", "shapviz",
                    "shiny", "bslib", "plotly"))
